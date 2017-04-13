@@ -4,4 +4,7 @@ dependencies {
     compile project(":h2o-core")
     compile project(":h2o-genmodel")
     compile project(":h2o-genmodel-ext-xgboost")
+
+    testCompile "junit:junit:${junitVersion}"
+    testCompile project(path: ":h2o-core", configuration: "testArchives")
 }

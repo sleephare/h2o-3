@@ -1,7 +1,7 @@
 package hex.genmodel.algos.xgboost;
 
 import hex.genmodel.ModelMojoReader;
-import ml.dmlc.xgboost4j.java.Booster;
+import ml.dmlc.xgboost4j.BoosterHelper;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 
 import java.io.ByteArrayInputStream;
@@ -13,11 +13,16 @@ import java.io.InputStream;
 public class XGBoostMojoReader extends ModelMojoReader<XGBoostMojoModel> {
 
   @Override
+  public String getModelName() {
+    return "XGBoost";
+  }
+
+  @Override
   protected void readModelData() throws IOException {
     byte[] boosterBytes = readblob("boosterBytes");
     InputStream is = new ByteArrayInputStream(boosterBytes);
     try {
-      _model._booster = Booster.loadModel(is);
+      _model._booster = BoosterHelper.loadModel(is);
     } catch (XGBoostError xgBoostError) {
       xgBoostError.printStackTrace();
     }

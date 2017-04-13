@@ -52,7 +52,6 @@ rootProject.children.each { project ->
   }
   if (project.name.startsWith("h2o-genmodel-ext-")) {
     String projectDirName = "h2o-genmodel-extensions/${project.name - 'h2o-genmodel-ext-'}"
-    println(projectDirName)
     project.projectDir = new File(settingsDir, projectDirName)
   }
 
