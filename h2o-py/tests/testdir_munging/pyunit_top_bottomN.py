@@ -3,6 +3,9 @@ import sys
 sys.path.insert(1,"../../")
 import h2o
 from tests import pyunit_utils
+import numpy as np
+from h2o.utils.typechecks import assert_is_type
+from h2o.frame import H2OFrame
 
 def h2o_H2OFrame_top_bottomN():
     """
@@ -17,7 +20,6 @@ def h2o_H2OFrame_top_bottomN():
     h2oframe = h2o.H2OFrame(python_obj=python_lists)
     newframe = h2oframe.cos()
     assert_is_type(newframe, H2OFrame)
-    pyunit_utils.assert_correct_frame_operation(h2oframe, newframe, "cos")
 
 if __name__ == "__main__":
     pyunit_utils.standalone_test(h2o_H2OFrame_top_bottomN)
