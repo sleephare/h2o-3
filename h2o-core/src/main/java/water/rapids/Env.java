@@ -169,6 +169,8 @@ public class Env extends Iced {
     init(new AstSum());
     init(new AstSumAxis());
     init(new AstSumNa());
+    // init(new AstTopN());  // top N%
+    // init(new AstBottomN()); // bottom N%
 
     // Time
     init(new AstAsDate());
