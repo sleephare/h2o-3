@@ -11,6 +11,7 @@ import water.fvec.Vec;
 import water.rapids.Rapids;
 import water.rapids.Val;
 import water.rapids.vals.ValFrame;
+import water.util.ArrayUtils;
 
 import java.util.ArrayList;
 
@@ -24,7 +25,7 @@ public class AstTopNTest extends TestUtil {
     private static Vec vi1, vd1, vd2, vd3, vs1, vt1, vt2, vc1, vc2;
     private static ArrayList<Frame> allFrames;
 
-    @BeforeClass public static void setup() {
+    @BeforeClass public static void setup() {   // randomly generate a frame here.
         stall_till_cloudsize(1);
         vi1 = TestUtil.ivec(-1, -2, 0, 2, 1);
         vd1 = TestUtil.dvec(1.5, 2.5, 3.5, 4.5, 8.0);
@@ -48,6 +49,23 @@ public class AstTopNTest extends TestUtil {
     //--------------------------------------------------------------------------------------------------------------------
     // Tests
     //--------------------------------------------------------------------------------------------------------------------
+    /** Test written by Nidhi to test that NaOmit actaully remove the rows with NAs in them. */
+    @Test public void TestNaOmit() {
+        Frame f = null;
+        Frame fNew = null;
+        try {
+            f = ArrayUtils.frame(ar("A", "B"), ard(1.0, Double.NaN), ard(2.0, 23.3),
+                    ard(3.0, 3.3), ard(Double.NaN, 3.3), ard(34.3, 2.3));
+            String x = String.format("(na.omit %s)", f._key);
+            Val res = Rapids.exec(x);         // make the call the remove NAs in frame
+            fNew = res.getFrame();            // get frame without any NAs
+            assertEquals(f.numRows()-fNew.numRows() ,2);  // 2 rows of NAs removed.
+        } finally {
+            if (f != null) f.delete();
+            if (fNew != null) fNew.delete();
+        }
+    }
+
 
     @Test public void testAstSumGeneralStructure() {
         AstSumAxis a = new AstSumAxis();
