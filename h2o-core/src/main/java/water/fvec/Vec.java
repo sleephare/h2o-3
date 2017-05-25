@@ -1335,27 +1335,30 @@ public class Vec extends Keyed<Vec> {
 
   /** Make a Vec adapting this cal vector to the 'to' categorical Vec.  The adapted
    *  CategoricalWrappedVec has 'this' as it's masterVec, but returns results in the 'to'
-   *  domain (or just past it, if 'this' has elements not appearing in the 'to'
-   *  domain). */
+   *  newDomain (or just past it, if 'this' has elements not appearing in the 'to'
+   *  newDomain). */
   public Vec adaptTo( String[] domain ) {
     if(isInt() && ArrayUtils.isInt(domain))
       return new CategoricalWrappedVec(group().addVec(),_rowLayout,domain,this._key);
     final int oldDomainLen = domain.length;
     if(isNumeric()){
-      double [] domain2 = MemoryManager.malloc8d(domain.length);
+      double [] double_domain = MemoryManager.malloc8d(domain.length);
       try {
-        for (int i = 0; i < domain2.length; ++i)
-          domain2[i] = Double.parseDouble(domain[i]);
-        Arrays.sort(domain2);
-        final double [] ddomain =new VecUtils.CollectDoubleDomain(domain2,100000).doAll(this).domain();
-        if(ddomain.length > domain.length){
+        for (int i = 0; i < double_domain.length; ++i)
+          double_domain[i] = Double.parseDouble(domain[i]);
+
+        double_domain =new VecUtils.CollectDoubleDomain(double_domain,100000).doAll(this).newDomain();
+        if(double_domain.length > domain.length){
           int n = domain.length;
-          domain = Arrays.copyOf(domain,ddomain.length);
-          for(int i = n; i < ddomain.length; ++i)
-            domain[i] = String.valueOf(ddomain[i]);
+          domain = Arrays.copyOf(domain,double_domain.length);
+          for(int i = n; i < double_domain.length; ++i)
+            domain[i] = String.valueOf(double_domain[i]);
         }
         Vec res = makeZero(domain);
-
+        final int [] indeces = ArrayUtils.seq(0,double_domain.length);;
+        if(!ArrayUtils.isSorted(double_domain))
+          ArrayUtils.sort(indeces,double_domain);
+        final double [] domain_vals = ArrayUtils.select(double_domain,indeces);
         new MRTask(){
           @Override public void map(Chunk c0, Chunk c1){
             for(int i = 0; i < c0._len; ++i) {
@@ -1363,16 +1366,13 @@ public class Vec extends Keyed<Vec> {
               if(Double.isNaN(d))
                 c1.setNA(i);
               else {
-                int j = Arrays.binarySearch(ddomain,0,oldDomainLen,d);
-                if(j < 0)
-                  j = Arrays.binarySearch(ddomain,oldDomainLen,ddomain.length,d);
-                c1.set(i, j);
+                c1.set(i, indeces[Arrays.binarySearch(domain_vals,d)]);
               }
             }
           }
         }.doAll(new Vec[]{this,res});
         assert res.min() >= 0;
-        assert res.max() <= ddomain.length-1;
+        assert res.max() <= domain_vals.length-1;
         return res;
       } catch(NumberFormatException n){/* fall through */}
 
