@@ -1337,8 +1337,47 @@ public class Vec extends Keyed<Vec> {
    *  CategoricalWrappedVec has 'this' as it's masterVec, but returns results in the 'to'
    *  domain (or just past it, if 'this' has elements not appearing in the 'to'
    *  domain). */
-  public CategoricalWrappedVec adaptTo( String[] domain ) {
-    return new CategoricalWrappedVec(group().addVec(),_rowLayout,domain,this._key);
+  public Vec adaptTo( String[] domain ) {
+    if(isInt() && ArrayUtils.isInt(domain))
+      return new CategoricalWrappedVec(group().addVec(),_rowLayout,domain,this._key);
+    final int oldDomainLen = domain.length;
+    if(isNumeric()){
+      double [] domain2 = MemoryManager.malloc8d(domain.length);
+      try {
+        for (int i = 0; i < domain2.length; ++i)
+          domain2[i] = Double.parseDouble(domain[i]);
+        Arrays.sort(domain2);
+        final double [] ddomain =new VecUtils.CollectDoubleDomain(domain2,100000).doAll(this).domain();
+        if(ddomain.length > domain.length){
+          int n = domain.length;
+          domain = Arrays.copyOf(domain,ddomain.length);
+          for(int i = n; i < ddomain.length; ++i)
+            domain[i] = String.valueOf(ddomain[i]);
+        }
+        Vec res = makeZero(domain);
+
+        new MRTask(){
+          @Override public void map(Chunk c0, Chunk c1){
+            for(int i = 0; i < c0._len; ++i) {
+              double d = c0.atd(i);
+              if(Double.isNaN(d))
+                c1.setNA(i);
+              else {
+                int j = Arrays.binarySearch(ddomain,0,oldDomainLen,d);
+                if(j < 0)
+                  j = Arrays.binarySearch(ddomain,oldDomainLen,ddomain.length,d);
+                c1.set(i, j);
+              }
+            }
+          }
+        }.doAll(new Vec[]{this,res});
+        assert res.min() >= 0;
+        assert res.max() <= ddomain.length-1;
+        return res;
+      } catch(NumberFormatException n){/* fall through */}
+
+    }
+    throw H2O.unimpl();
   }
 
   /** Class representing the group of vectors.
