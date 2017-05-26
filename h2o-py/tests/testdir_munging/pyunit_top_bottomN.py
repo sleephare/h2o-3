@@ -18,8 +18,8 @@ def h2o_H2OFrame_top_bottomN():
     """
     python_lists = np.random.uniform(-1,1, (3,4))
     h2oframe = h2o.H2OFrame(python_obj=python_lists)
-    newframe = h2oframe.sum(skipna=True, axis=0)
-    assert_is_type(newframe, H2OFrame)
+    newframe = h2oframe.topN(0, 10)
+    print("wow")
 
 if __name__ == "__main__":
     pyunit_utils.standalone_test(h2o_H2OFrame_top_bottomN)

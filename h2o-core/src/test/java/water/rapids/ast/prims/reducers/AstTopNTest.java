@@ -8,8 +8,6 @@ import water.rapids.Rapids;
 import water.rapids.Val;
 import water.util.ArrayUtils;
 
-import static org.junit.Assert.assertEquals;
-
 
 /**
  * Test the AstTopN.java class
@@ -33,8 +31,8 @@ public class AstTopNTest extends TestUtil {
                     ard(1.123, 2.421), ard(10.21, 2.432));
             String x = "(topn "+ f._key+ " 1 20 0)";
             Val res = Rapids.exec(x);         // make the call the remove NAs in frame
-            fNew = res.getFrame();            // get frame without any NAs
-            assertEquals(f.numRows()-fNew.numRows() ,2);  // 2 rows of NAs removed.
+            fNew = res.getFrame();            // get frame that contains top/bottom N elements
+
         } finally {
             if (f != null) f.delete();
             if (fNew != null) fNew.delete();

@@ -2497,6 +2497,62 @@ class H2OFrame(object):
             raise H2OValueError("'index' argument is not type enum, time or int")
         return H2OFrame._expr(expr=ExprNode("pivot",self,index,column,value))
 
+    def topN(self, column=0, nPercent=10):
+        """
+        Given a column name or one column index, a percent N, this function will return the top N% of the values
+        of the column of a frame.  The column must be a numerical column.
+    
+        :param column: a string for column name or an integer index
+        :param nPercent: a top percentage of the column values to return
+        :return: a H2OFrame containing two columns.  The first column contains the original row indices where
+            the top values are extracted from.  The second column contains the top nPercent values.
+        """
+        assert isinstance(column, str) or isinstance(column, int)
+        assert (nPercent >= 0) and (nPercent<100.0), "nPercent must be between 0.0 and 100.0"
+        assert round(nPercent*0.01*self.nrows)>0, "Increase nPercent.  Current value will result in top 0 row."
+
+        col_names = self.names
+        if isinstance(column, str):
+            if column not in col_names:
+                raise H2OValueError("Column name not found H2OFrame")
+            else:
+                colIndex = col_names.index(column)
+        if isinstance(column, int):
+            if (column < 0) or (column>=self.ncols):
+                raise H2OValueError("Invalid column index H2OFrame")
+            else:
+                colIndex = column
+
+        return H2OFrame._expr(expr=ExprNode("topN",self,colIndex, nPercent, 0))
+
+        def bottomN(self, column=0, nPercent=10):
+            """
+            Given a column name or one column index, a percent N, this function will return the bottom N% of the values
+            of the column of a frame.  The column must be a numerical column.
+        
+            :param column: a string for column name or an integer index
+            :param nPercent: a bottom percentage of the column values to return
+            :return: a H2OFrame containing two columns.  The first column contains the original row indices where
+                the top values are extracted from.  The second column contains the bottom nPercent values.
+            """
+        assert isinstance(column, str) or isinstance(column, int)
+        assert (nPercent >= 0) and (nPercent<100.0), "nPercent must be between 0.0 and 100.0"
+        assert round(nPercent*0.01*self.nrows)>0, "Increase nPercent.  Current value will result in top 0 row."
+
+        col_names = self.names
+        if isinstance(column, str):
+            if column not in col_names:
+                raise H2OValueError("Column name not found H2OFrame")
+            else:
+                colIndex = col_names.index(column)
+        if isinstance(column, int):
+            if (column < 0) or (column>=self.ncols):
+                raise H2OValueError("Invalid column index H2OFrame")
+            else:
+                colIndex = column
+
+        return H2OFrame._expr(expr=ExprNode("topN",self,colIndex, nPercent, 1))
+
     def sub(self, pattern, replacement, ignore_case=False):
         """
         Substitute the first occurrence of pattern in a string with replacement.

@@ -1129,6 +1129,29 @@ h2o.pivot <- function(x, index, column, value){
   }
   .newExpr("pivot", x, .quote(index), .quote(column), .quote(value))
 }
+
+#' topN function will will grab the top N% of values of a column and return it in a H2OFrame.
+#'
+#' @param x an H2OFrame
+#' @param column is a column name or column index to grab the top N% value from
+#' @param nPercent: top percentage values to grab
+#' @return An H2OFrame with 2 columns: first column is the original row indices, second column contains the topN values
+#' @export
+h2o.topN <- function(x, column, nPercent){
+  if (typeof(column)=="character") {
+    if (!column %in% colnames) stop("column name not found in dataframe")
+    colIndex = which (column %in% colnames)
+
+  } else {
+    colIndex = column
+  }
+  .newExpr("topN", x,  .quote(column), .quote(nPercent), .quote(1))
+}
+
+
+
+
+
 #-----------------------------------------------------------------------------------------------------------------------
 # Time & Date
 #-----------------------------------------------------------------------------------------------------------------------
