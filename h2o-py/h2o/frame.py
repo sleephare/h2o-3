@@ -2523,7 +2523,9 @@ class H2OFrame(object):
             else:
                 colIndex = column
 
-        return H2OFrame._expr(expr=ExprNode("topN",self,colIndex, nPercent, 0))
+        f1= H2OFrame._expr(expr=ExprNode("topn",self,colIndex, nPercent, 0))
+        return f1
+
 
         def bottomN(self, column=0, nPercent=10):
             """
@@ -2551,7 +2553,7 @@ class H2OFrame(object):
             else:
                 colIndex = column
 
-        return H2OFrame._expr(expr=ExprNode("topN",self,colIndex, nPercent, 1))
+        return H2OFrame._expr(expr=ExprNode("topn",self,colIndex, nPercent, 1))
 
     def sub(self, pattern, replacement, ignore_case=False):
         """

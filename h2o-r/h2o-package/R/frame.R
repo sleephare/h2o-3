@@ -1145,7 +1145,7 @@ h2o.topN <- function(x, column, nPercent){
   } else {
     colIndex = column
   }
-  .newExpr("topN", x,  .quote(column), .quote(nPercent), .quote(1))
+  .newExpr("topn", x,  .quote(column), .quote(nPercent), .quote(1))
 }
 
 

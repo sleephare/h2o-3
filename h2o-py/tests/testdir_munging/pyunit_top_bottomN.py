@@ -16,10 +16,13 @@ def h2o_H2OFrame_top_bottomN():
     the original frame of where the topN (bottomN) values come from.  This will let the users to grab those
     corresponding rows to do whatever they want with it.
     """
-    python_lists = np.random.uniform(-1,1, (3,4))
+    python_lists = np.random.uniform(-1,1, (30,40))
     h2oframe = h2o.H2OFrame(python_obj=python_lists)
-    newframe = h2oframe.topN(0, 10)
-    print("wow")
+    nP = 10
+    newframe = h2oframe.topN(0, nP)
+    assert_is_type(newframe, H2OFrame)
+    assert newframe.ncols==2, "Top N returned incorrect number of columns"
+    assert newframe.nrows==round(nP*0.01*h2oframe.nrows), "Top N returned incorrect top N% rows."
 
 if __name__ == "__main__":
     pyunit_utils.standalone_test(h2o_H2OFrame_top_bottomN)
