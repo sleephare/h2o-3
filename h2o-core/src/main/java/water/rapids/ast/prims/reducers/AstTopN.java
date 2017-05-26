@@ -196,9 +196,9 @@ public class AstTopN extends AstPrimitive {
         for (int i = 0; i < rowValues.size(); i++) {
           xvecs[0].set(rowCount, rowValues.get(i));
           if (_csLong)
-            xvecs[1].set(rowCount, (long) key);
+            xvecs[1].set(rowCount, (Long) key);
           else
-            xvecs[1].set(rowCount, (double) key);
+            xvecs[1].set(rowCount, (Double) key);
 
           rowCount++;
           rowIncreased++;
