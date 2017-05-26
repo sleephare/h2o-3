@@ -29,7 +29,7 @@ public class AstTopNTest extends TestUtil {
         try {
             f = ArrayUtils.frame(ar("A", "B"), ard(1.0, Double.NaN), ard(2.0, 23.3),
                     ard(3.0, 3.3), ard(Double.NaN, 3.3), ard(34.3, 2.3));
-            String x = "(topn "+ f._key+ " 0 50 0)";
+            String x = "(topn "+ f._key+ " 1 50 0)";
             Val res = Rapids.exec(x);         // make the call the remove NAs in frame
             fNew = res.getFrame();            // get frame without any NAs
             assertEquals(f.numRows()-fNew.numRows() ,2);  // 2 rows of NAs removed.
