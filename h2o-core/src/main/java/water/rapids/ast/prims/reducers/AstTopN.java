@@ -1,15 +1,19 @@
 package water.rapids.ast.prims.reducers;
 
+import water.MRTask;
+import water.fvec.Chunk;
 import water.fvec.Frame;
 import water.rapids.Env;
 import water.rapids.ast.AstPrimitive;
 import water.rapids.ast.AstRoot;
 import water.rapids.vals.ValFrame;
 
+import java.util.TreeMap;
+
 public class AstTopN extends AstPrimitive {
   @Override
   public String[] args() {
-    return new String[]{"frame", "col", "nPercent", "getTopN"};
+    return new String[]{"frame", "col", "nPercent", "getBottomN"};
   }
 
   @Override
@@ -20,8 +24,8 @@ public class AstTopN extends AstPrimitive {
 
   @Override
   public int nargs() {
-    return -1;
-  }
+    return 1+4;
+  } // function name plus 4 arguments.
 
   @Override
   public String example() {
@@ -54,4 +58,40 @@ public class AstTopN extends AstPrimitive {
     return new ValFrame(frOriginal);
 
   }
+
+  /*
+   Here is the plan:
+   1. For each chunk, read in a sorted portion of the chunk into an binary heap with key and value.  The key will
+   be the original row number and the value will be the value of course
+   2. Inside reduce, make sure you combine the heaps and then sort them back to one into one
+   3. Inside the postGlobal, copy the heap key values into a frame and return.
+   */
+// E depends on column type: double, int or long
+  public static class GrabTopN<E> extends MRTask<GrabTopN<E>>  {
+    final String _columnName;   // name of column that we are grabbing top N for
+    TreeMap<E, Long> _sortHeap;
+    Frame _sortedOut;   // store the final result of sorting
+    final int _rowSize;   // number of top or bottom rows to keep
+
+
+    private GrabTopN(String columnName, int rowSize) {
+      _columnName = columnName;
+      _rowSize = rowSize;
+    }
+
+    @Override public void map(Chunk cs) {
+
+    }
+
+    @Override public void reduce(GrabTopN<E> other) {
+
+    }
+
+    @Override public void postGlobal() {  // copy the sorted heap into a vector and make a frame out of it.
+
+    }
+
+    class TopNComparator 
+  }
+
 }
