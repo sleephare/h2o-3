@@ -9,10 +9,7 @@ import water.rapids.ast.AstPrimitive;
 import water.rapids.ast.AstRoot;
 import water.rapids.vals.ValFrame;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 public class AstTopN extends AstPrimitive {
   @Override
@@ -78,7 +75,6 @@ public class AstTopN extends AstPrimitive {
   public  class GrabTopN<E extends Comparable<E>> extends MRTask<GrabTopN<E>>  {
     final String[] _columnName;   // name of column that we are grabbing top N for
     TreeMap _sortHeap;
-    HashMap tempMap;
     Frame _sortedOut;   // store the final result of sorting
     final long _rowSize;   // number of top or bottom rows to keep
     final boolean _increasing;  // sort with Top values first if true.
@@ -91,48 +87,76 @@ public class AstTopN extends AstPrimitive {
     }
 
     @Override public void map(Chunk cs) {
-
-      HashMap tempMap = new HashMap ();
+      _sortHeap = new TreeMap();
       Long startRow = cs.start();           // absolute row offset
 
       for (int rowIndex = 0; rowIndex < cs._len; rowIndex++) {  // stuff our chunks into hashmap
+        long absRowIndex = rowIndex+startRow;
         if (!cs.isNA(rowIndex)) { // skip NAN values
-          if (cs instanceof C8Chunk) {
-            tempMap.put(startRow + rowIndex, cs.at8(rowIndex));
-          } else {
-            tempMap.put(startRow + rowIndex, cs.atd(rowIndex));
-          }
+          addOneValue(cs, rowIndex, absRowIndex, _sortHeap);
         }
       }
-      _sortHeap = new TreeMap(new ValueComparator(tempMap, _increasing?1:-1));  // sort the HashMap
-      _sortHeap.putAll(tempMap);
 
+      // reduce heap size to about rowSize
+      if (_sortHeap.size() > _rowSize) {  // chop down heap size to around _rowSize
+        reduceHeapSize(_sortHeap, _rowSize);
+      }
     }
 
+    public void reduceHeapSize(TreeMap tmap, long desiredSize) {
+      long numDelete = tmap.size()-desiredSize;
+      for (long index=0; index<numDelete; index++) {
+        if (_increasing)
+          tmap.remove(tmap.firstKey());
+        else
+          tmap.remove(tmap.lastKey());
+      }
+    }
+
+    public void addOneValue(Chunk cs, int rowIndex, long absRowIndex, TreeMap sortHeap) {
+      if (cs instanceof C8Chunk) {  // long chunk
+        long a = cs.at8(rowIndex);
+        if (sortHeap.containsKey(a)) {
+          ArrayList<Long> allRows = (ArrayList<Long>) sortHeap.get(a);
+          allRows.add(absRowIndex);
+          sortHeap.put(a, allRows);
+        } else {
+          ArrayList<Long> allRows = new ArrayList<Long>();
+          allRows.add(absRowIndex);
+          sortHeap.put(a, allRows);
+        }
+      } else {                      // other numeric chunk
+        double a = cs.atd(rowIndex);
+        if (sortHeap.containsKey(a)) {
+          ArrayList<Long> allRows = (ArrayList<Long>) sortHeap.get(a);
+          allRows.add(absRowIndex);
+          sortHeap.put(a, allRows);
+        } else {
+          ArrayList<Long> allRows = new ArrayList<Long>();
+          allRows.add(absRowIndex);
+          sortHeap.put(a, allRows);
+        }
+      }
+    }
 
     @Override public void reduce(GrabTopN<E> other) {
+      this._sortHeap.putAll(other._sortHeap);
 
+      if (this._sortHeap.size() > _rowSize) {
+        reduceHeapSize(this._sortHeap, _rowSize); // shrink the heap size again.
+      }
     }
 
     @Override public void postGlobal() {  // copy the sorted heap into a vector and make a frame out of it.
+      long rowCount = 0l; // count number of rows extracted from Heap and setting to final frame
+      
+      while (rowCount < _rowSize) {
+        if (_increasing) {  // grab the last one
 
-    }
-  }
+        } else {  // grab the first one
 
-  /*
-  Comparator which sort according to value in TreeMap and not the key as is conventional
-   */
-  public class ValueComparator<E extends Comparable<E>> implements Comparator<Long> {
-    private Map<Long, E> _map;
-    int _toIncrease;
-
-    public ValueComparator(Map<Long, E> map, int toIncrease) {
-      this._map = map;
-      this._toIncrease = toIncrease;
-    }
-
-    public int compare(Long a, Long b) {
-        return (_map.get(a).compareTo(_map.get(b)))*_toIncrease; // reverse sign for decreasing
+        }
+      }
     }
   }
 
