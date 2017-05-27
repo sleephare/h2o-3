@@ -1137,20 +1137,29 @@ h2o.pivot <- function(x, index, column, value){
 #' @param nPercent: top percentage values to grab
 #' @return An H2OFrame with 2 columns: first column is the original row indices, second column contains the topN values
 #' @export
-h2o.topN <- function(x, column, nPercent){
-  if (typeof(column)=="character") {
+h2o.topBottomN <- function(x, column, nPercent, getBottom){
+  if (typeof(column)=="character") {  # verify column
     if (!column %in% colnames) stop("column name not found in dataframe")
-    colIndex = which (column %in% colnames)
+    colIndex = (which (column %in% colnames))-1
 
-  } else {
-    colIndex = column
+  } else {  # column is number
+    if ((column <= 0) || (column > ncol)) stop("Illegal column index")
+    colIndex = column-1
   }
-  .newExpr("topn", x,  .quote(column), .quote(nPercent), .quote(1))
+
+  # verify nPercent
+  if ((nPercent <  0) || nPercent > 100) stop("nPercent is between 0 and 100.")
+
+  .newExpr("topn", x, colIndex, nPercent,getBottom)
 }
 
+h2o.topN <- function(x, column, nPercent) {
+  h2o.topBottomN(x, column, nPercent, 0)
+}
 
-
-
+h2o.bottomN <- function(x, column, nPercent) {
+  h2o.topBottomN(x, column, nPercent, 1)
+}
 
 #-----------------------------------------------------------------------------------------------------------------------
 # Time & Date
