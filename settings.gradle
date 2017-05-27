@@ -54,7 +54,6 @@ rootProject.children.each { project ->
     String projectDirName = "h2o-genmodel-extensions/${project.name - 'h2o-genmodel-ext-'}"
     project.projectDir = new File(settingsDir, projectDirName)
   }
-
 }
 
 //
