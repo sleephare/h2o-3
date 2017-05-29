@@ -80,40 +80,46 @@ abstract public class Log {
   // Common prefix for logged messages
   private static String logPrefix;
 
-  public static void init( String slvl, boolean quiet ) {
+  public static void init(String slvl, boolean quiet) {
     LEVEL lvl = LEVEL.fromString(slvl);
     if( lvl != LEVEL.UNKNOWN) currentLevel = lvl.getLevel();
     quietLogging = quiet;
   }
 
-  public static void trace( Object... objs ) { log(TRACE,objs); }
-  public static void debug( Object... objs ) { log(DEBUG,objs); }
-  public static void info ( Object... objs ) { log(INFO ,objs); }
-  public static void warn ( Object... objs ) { log(WARN ,objs); }
-  public static void err  ( Object... objs ) { log(ERROR ,objs); }
+  /** Basic logging methods */
+  public static void fatal(Object... objs) { log(FATAL,objs); }
+  public static void err(Object... objs) { log(ERROR, objs); }
+  public static void warn(Object... objs) { log(WARN, objs); }
+  public static void info(Object... objs) { log(INFO, objs); }
+  public static void debug(Object... objs) { log(DEBUG, objs); }
+  public static void trace(Object... objs) { log(TRACE, objs); }
+  public static void log(int level, Object... objs) { if( currentLevel >= level ) write(level, objs); }
+
+  /** Log exception */
   public static void err(Throwable ex) {
     StringWriter sw = new StringWriter();
     ex.printStackTrace(new PrintWriter(sw));
     err(sw.toString());
   }
-  public static void fatal( Object... objs ) { log(FATAL,objs); }
-  public static void log  ( int level, Object... objs ) { if( currentLevel >= level ) write(level, objs); }
 
+  /** Log with custom specification whether to print to stdout or not */
+  public static void info(String s, boolean stdout) { if( currentLevel >= INFO ) write0(INFO, stdout, s); }
+
+  /** Log to htttp log*/
   public static void httpd(String method, String uri, int status, long deltaMillis) {
     org.apache.log4j.Logger l = LogManager.getLogger(water.api.RequestServer.class);
     String msg = String.format("  %-6s  %3d  %6d ms  %s", method, status, deltaMillis, uri);
     l.info(msg);
   }
 
-  public static void info( String s, boolean stdout ) { if( currentLevel >= INFO ) write0(INFO, stdout, s); }
-
-  // This call *throws* an unchecked exception and never returns (after logging).
-  public static RuntimeException throwErr( Throwable e ) {
-    err(e);                     // Log it
+  /** This call *throws* an unchecked exception and never returns (after logging).*/
+  public static RuntimeException throwErr(Throwable e) {
+    err(e); // Log it
     throw e instanceof RuntimeException ? (RuntimeException)e : new RuntimeException(e); // Throw it
   }
 
-  private static void write( int lvl, Object objs[] ) {
+  /** Determine whether to print to stdout or not and pass the call for further processing */
+  private static void write(int lvl, Object objs[]) {
     boolean writeToStdout = (lvl <= currentLevel);
     write0(lvl, writeToStdout, objs);
   }
@@ -124,7 +130,7 @@ abstract public class Log {
             + StringUtils.ofFixedLength(H2O.PID + " ", 6);
   }
 
-  private static void write0( int lvl, boolean stdout, Object objs[] ) {
+  private static void write0(int lvl, boolean stdout, Object objs[]) {
     StringBuilder sb = new StringBuilder();
     for( Object o : objs ) sb.append(o);
     String res = sb.toString();
@@ -140,7 +146,7 @@ abstract public class Log {
     write0(lvl, stdout, res);
   }
 
-  private static void write0( int lvl, boolean stdout, String s ) {
+  private static void write0(int lvl, boolean stdout, String s) {
     StringBuilder sb = new StringBuilder();
     String hdr = header(lvl);   // Common header for all lines
     write0(sb, hdr, s);
@@ -163,7 +169,7 @@ abstract public class Log {
     }
   }
 
-  private static void write0( StringBuilder sb, String hdr, String s ) {
+  private static void write0(StringBuilder sb, String hdr, String s) {
     if( s.contains("\n") ) {
       for( String s2 : s.split("\n") ) { write0(sb,hdr,s2); sb.append("\n"); }
       sb.setLength(sb.length()-1);
@@ -199,7 +205,7 @@ abstract public class Log {
     return logDir;
   }
 
-  private static String getLogFileNameStem() throws Exception {
+  private static String getLogFileNamePrefix() throws Exception {
     String ip = H2O.SELF_ADDRESS.getHostAddress();
     int port = H2O.API_PORT;
     String portString = Integer.toString(port);
@@ -217,7 +223,7 @@ abstract public class Log {
     String ip = H2O.SELF_ADDRESS.getHostAddress();
     int port = H2O.API_PORT;
     String portString = Integer.toString(port);
-    String logFileName = getLogDir() + File.separator + getLogFileNameStem();
+    String logFileName = getLogDir() + File.separator + getLogFileNamePrefix();
     return logFileName;
   }
 
@@ -225,20 +231,16 @@ abstract public class Log {
    * @return This is what shows up in the Web UI when clicking on show log file.  File name only.
    */
   public static String getLogFileName(String level) throws Exception {
-    String f;
-    switch (level) {
-      case "trace": f = "-1-trace.log"; break;
-      case "debug": f = "-2-debug.log"; break;
-      case "info":  f = "-3-info.log"; break;
-      case "warn":  f = "-4-warn.log"; break;
-      case "error": f = "-5-error.log"; break;
-      case "fatal": f = "-6-fatal.log"; break;
-      case "httpd": f = "-httpd.log"; break;
-      default:
-        throw new Exception("Unknown level");
+    if(level.equals("httpd")){
+      return "-httpd.log";
+    }else{
+      LEVEL lvl = LEVEL.fromString(level);
+      if(lvl.equals(LEVEL.UNKNOWN)) {
+        throw new RuntimeException("Unknown level: " + level);
+      } else {
+        return getLogFileNamePrefix() + "-" + lvl.getLevel() + "-" + lvl.toString() + ".log";
+      }
     }
-
-    return getLogFileNameStem() + f;
   }
 
   private static void setLog4jProperties(String logDir, java.util.Properties p) throws Exception {
