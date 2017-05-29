@@ -23,53 +23,81 @@ import java.util.ArrayList;
  *  logging, no guarantees are made about the messages.
  **/
 abstract public class Log {
+  private static final byte UNKNOWN = -1;
+  private static final byte FATAL = 0;
+  private static final byte ERROR = 1;
+  private static final byte WARN = 2;
+  private static final byte INFO = 3;
+  private static final byte DEBUG = 4;
+  private static final byte TRACE = 5;
 
-  private static org.apache.log4j.Logger _logger = null;
+/**
+ * Public Log Level which hides the internal codes
+ */
+  public enum LEVEL {
+    UNKNOWN(Log.UNKNOWN), FATAL(Log.FATAL), ERROR(Log.ERROR), WARN(Log.WARN), INFO(Log.INFO),
+    DEBUG(Log.DEBUG), TRACE(Log.TRACE);
 
-  static String LOG_DIR = null;
+    private byte numLevel;
+    LEVEL(byte numLevel) {
+      this.numLevel = numLevel;
+    }
 
-  public static final byte FATAL= 0;
-  public static final byte ERRR = 1;
-  public static final byte WARN = 2;
-  public static final byte INFO = 3;
-  public static final byte DEBUG= 4;
-  public static final byte TRACE= 5;
-  public static final String[] LVLS = { "FATAL", "ERRR", "WARN", "INFO", "DEBUG", "TRACE" };
-  static int _level=INFO;
-  static boolean _quiet = false;
+    public byte getLevel(){
+      return numLevel;
+    }
 
-  // Common pre-header
-  private static String _preHeader;
+    public static LEVEL fromString(String level) {
+      if(level == null){
+        return UNKNOWN;
+      }
+      try {
+        return LEVEL.valueOf(level.toUpperCase());
+      }catch (IllegalArgumentException e){
+        return UNKNOWN;
+      }
+    }
 
-  public static byte valueOf( String slvl ) {
-    if( slvl == null ) return -1;
-    slvl = slvl.toLowerCase();
-    if( slvl.startsWith("fatal") ) return FATAL;
-    if( slvl.startsWith("err"  ) ) return ERRR;
-    if( slvl.startsWith("warn" ) ) return WARN;
-    if( slvl.startsWith("info" ) ) return INFO;
-    if( slvl.startsWith("debug") ) return DEBUG;
-    if( slvl.startsWith("trace") ) return TRACE;
-    return -1;
+    public static LEVEL fromNum(int level){
+      switch (level){
+        case Log.FATAL: return FATAL;
+        case Log.ERROR: return ERROR;
+        case Log.WARN: return WARN;
+        case Log.INFO: return INFO;
+        case Log.DEBUG: return DEBUG;
+        case Log.TRACE: return TRACE;
+        default: return UNKNOWN;
+      }
+    }
   }
+
+  private static org.apache.log4j.Logger logger = null;
+  private static String logDir = null;
+  // List for messages to be logged before the logging is fully initialized (startup buffering)
+  private static ArrayList<String> initialMsgs = new ArrayList<>();
+  private static byte currentLevel = INFO;
+  private static boolean quietLogging = false;
+  // Common prefix for logged messages
+  private static String logPrefix;
+
   public static void init( String slvl, boolean quiet ) {
-    int lvl = valueOf(slvl);
-    if( lvl != -1 ) _level = lvl;
-    _quiet = quiet;
+    LEVEL lvl = LEVEL.fromString(slvl);
+    if( lvl != LEVEL.UNKNOWN) currentLevel = lvl.getLevel();
+    quietLogging = quiet;
   }
 
   public static void trace( Object... objs ) { log(TRACE,objs); }
   public static void debug( Object... objs ) { log(DEBUG,objs); }
   public static void info ( Object... objs ) { log(INFO ,objs); }
   public static void warn ( Object... objs ) { log(WARN ,objs); }
-  public static void err  ( Object... objs ) { log(ERRR ,objs); }
+  public static void err  ( Object... objs ) { log(ERROR ,objs); }
   public static void err(Throwable ex) {
     StringWriter sw = new StringWriter();
     ex.printStackTrace(new PrintWriter(sw));
     err(sw.toString());
   }
   public static void fatal( Object... objs ) { log(FATAL,objs); }
-  public static void log  ( int level, Object... objs ) { if( _level >= level ) write(level, objs); }
+  public static void log  ( int level, Object... objs ) { if( currentLevel >= level ) write(level, objs); }
 
   public static void httpd( String msg ) {
     // This is never called anymore.
@@ -82,7 +110,7 @@ abstract public class Log {
     l.info(s);
   }
 
-  public static void info( String s, boolean stdout ) { if( _level >= INFO ) write0(INFO, stdout, s); }
+  public static void info( String s, boolean stdout ) { if( currentLevel >= INFO ) write0(INFO, stdout, s); }
 
   // This call *throws* an unchecked exception and never returns (after logging).
   public static RuntimeException throwErr( Throwable e ) {
@@ -91,13 +119,13 @@ abstract public class Log {
   }
 
   private static void write( int lvl, Object objs[] ) {
-    boolean writeToStdout = (lvl <= _level);
+    boolean writeToStdout = (lvl <= currentLevel);
     write0(lvl, writeToStdout, objs);
   }
 
   private static void createLogPrefix(){
     String host = H2O.SELF_ADDRESS.getHostAddress();
-    _preHeader = StringUtils.ofFixedLength(host + ":" + H2O.API_PORT + " ", 22)
+    logPrefix = StringUtils.ofFixedLength(host + ":" + H2O.API_PORT + " ", 22)
             + StringUtils.ofFixedLength(H2O.PID + " ", 6);
   }
 
@@ -106,12 +134,12 @@ abstract public class Log {
     for( Object o : objs ) sb.append(o);
     String res = sb.toString();
     if( H2O.SELF_ADDRESS == null ) { // Oops, need to buffer until we can do a proper header
-      INIT_MSGS.add(res);
+      initialMsgs.add(res);
       return;
     }
-    if( INIT_MSGS != null ) {   // Ahh, dump any initial buffering
+    if( initialMsgs != null ) {   // Ahh, dump any initial buffering
       createLogPrefix();
-      ArrayList<String> bufmsgs = INIT_MSGS;  INIT_MSGS = null;
+      ArrayList<String> bufmsgs = initialMsgs;  initialMsgs = null;
       if (bufmsgs != null) for( String s : bufmsgs ) write0(INFO, true, s);
     }
     write0(lvl, stdout, res);
@@ -123,13 +151,13 @@ abstract public class Log {
     write0(sb, hdr, s);
 
     // stdout first - in case log4j dies failing to init or write something
-    if(stdout && !_quiet) System.out.println(sb);
+    if(stdout && !quietLogging) System.out.println(sb);
 
     // log something here
-    org.apache.log4j.Logger l4j = _logger != null ? _logger : createLog4j();
+    org.apache.log4j.Logger l4j = logger != null ? logger : createLog4j();
     switch( lvl ) {
       case FATAL:l4j.fatal(sb); break;
-      case ERRR: l4j.error(sb); break;
+      case ERROR: l4j.error(sb); break;
       case WARN: l4j.warn (sb); break;
       case INFO: l4j.info (sb); break;
       case DEBUG:l4j.debug(sb); break;
@@ -152,19 +180,16 @@ abstract public class Log {
   // Build a header for all lines in a single message
   private static String header(int lvl) {
     String threadName = StringUtils.ofFixedLength(Thread.currentThread().getName() + " ", 10);
-    return String.format("%s %s %s%s: ", Timer.nowAsLogString(), _preHeader, threadName, LVLS[lvl]);
+    return String.format("%s %s %s%s: ", Timer.nowAsLogString(), logPrefix, threadName, LEVEL.fromNum(lvl));
   }
 
-  // A little bit of startup buffering
-  private static ArrayList<String> INIT_MSGS = new ArrayList<>();
-
   public static void flushStdout() {
-    if (INIT_MSGS != null) {
-      for (String s : INIT_MSGS) {
+    if (initialMsgs != null) {
+      for (String s : initialMsgs) {
         System.out.println(s);
       }
 
-      INIT_MSGS.clear();
+      initialMsgs.clear();
     }
   }
 
@@ -172,11 +197,11 @@ abstract public class Log {
    * @return This is what should be used when doing Download All Logs.
    */
   public static String getLogDir() throws Exception {
-    if (LOG_DIR == null) {
-      throw new Exception("LOG_DIR not yet defined");
+    if (logDir == null) {
+      throw new Exception("logDir not yet defined");
     }
 
-    return LOG_DIR;
+    return logDir;
   }
 
   private static String getLogFileNameStem() throws Exception {
@@ -222,7 +247,7 @@ abstract public class Log {
   }
 
   private static void setLog4jProperties(String logDir, java.util.Properties p) throws Exception {
-    LOG_DIR = logDir;
+    Log.logDir = logDir;
     String logPathFileName = getLogPathFileNameStem();
 
     // H2O-wide logging
@@ -233,7 +258,7 @@ abstract public class Log {
             "TRACE, R3, R4, R5, R6",
             "TRACE, R2, R3, R4, R5, R6",
             "TRACE, R1, R2, R3, R4, R5, R6",
-    }[_level];
+    }[currentLevel];
     p.setProperty("log4j.logger.water.default", appenders);
     p.setProperty("log4j.additivity.water.default",   "false");
 
@@ -336,7 +361,7 @@ abstract public class Log {
   }
 
   private static synchronized org.apache.log4j.Logger createLog4j() {
-    if( _logger != null ) return _logger; // Test again under lock
+    if( logger != null ) return logger; // Test again under lock
 
     boolean launchedWithHadoopJar = H2O.ARGS.launchedWithHadoopJar();
     String log4jConfiguration = System.getProperty ("h2o.log4j.configuration");
@@ -349,12 +374,12 @@ abstract public class Log {
       // H2O creates the log setup itself on the fly in code.
       java.util.Properties p = new java.util.Properties();
       if (H2O.ARGS.log_dir != null) {
-        LOG_DIR = new File(H2O.ARGS.log_dir).getAbsolutePath();
+        logDir = new File(H2O.ARGS.log_dir).getAbsolutePath();
       } else {
-        LOG_DIR = defaultLogDir().getAbsolutePath();
+        logDir = defaultLogDir().getAbsolutePath();
       }
       try {
-        setLog4jProperties(LOG_DIR, p);
+        setLog4jProperties(logDir, p);
       }
       catch (Exception e) {
         System.err.println("ERROR: failed in createLog4j, exiting now.");
@@ -376,7 +401,7 @@ abstract public class Log {
       }
     }
 
-    return (_logger = LogManager.getLogger("water.default"));
+    return (logger = LogManager.getLogger("water.default"));
   }
 
   public static void ignore(Throwable e) {
@@ -443,6 +468,6 @@ abstract public class Log {
     }
   }
 
-  public static void setQuiet(boolean q) { _quiet = q; }
-  public static boolean getQuiet() { return _quiet; }
+  public static void setQuiet(boolean q) { quietLogging = q; }
+  public static boolean getQuiet() { return quietLogging; }
 }
