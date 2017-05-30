@@ -139,7 +139,7 @@ public class AstTopN extends AstPrimitive {
     public void reduceHeapSize(TreeMap tmap, long desiredSize) {
       long numDelete = tmap.size()-desiredSize;
       for (long index=0; index<numDelete; index++) {
-        if (_increasing)
+       if (_increasing)
           tmap.remove(tmap.firstKey());
         else
           tmap.remove(tmap.lastKey());
@@ -186,19 +186,21 @@ public class AstTopN extends AstPrimitive {
       E key;
       int rowIncreased = 0;
 
-      if (_increasing) {
+      key = _increasing?(E) _sortHeap.lastKey():(E) _sortHeap.firstKey();
+/*      if (_increasing) {
         key = (E) _sortHeap.lastKey();
       } else {
         key = (E) _sortHeap.firstKey();
-      }
+      }*/
       rowValues = (ArrayList<Long>) _sortHeap.get(key);
         _sortHeap.remove(key);
         for (int i = 0; i < rowValues.size(); i++) {
           xvecs[0].set(rowCount, rowValues.get(i));
-          if (_csLong)
+          xvecs[1].set(rowCount, _csLong?(Long) key:(Double) key);
+/*          if (_csLong)
             xvecs[1].set(rowCount, (Long) key);
           else
-            xvecs[1].set(rowCount, (Double) key);
+            xvecs[1].set(rowCount, (Double) key);*/
 
           rowCount++;
           rowIncreased++;
