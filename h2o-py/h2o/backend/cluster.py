@@ -252,6 +252,21 @@ class H2OCluster(object):
         res["table"].show()
 
 
+    def list_all_capabilities(self):
+        """List all available capabilities on the h2o backend"""
+        res = h2o.api("GET /3/Capabilities")["capabilities"]
+        return [x["name"] for x in res]
+
+    def list_core_capabilities(self):
+        """List available core capabilities on the h2o backend"""
+        res = h2o.api("GET /3/Capabilities/Core")["capabilities"]
+        return [x["name"] for x in res]
+
+    def list_api_capabilities(self):
+        """List available API capabilities on the h2o backend"""
+        res = h2o.api("GET /3/Capabilities/API")["capabilities"]
+        return [x["name"] for x in res]
+
     @property
     def timezone(self):
         """Current timezone of the H2O cluster."""
