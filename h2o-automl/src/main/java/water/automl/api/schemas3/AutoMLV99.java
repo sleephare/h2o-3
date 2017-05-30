@@ -16,7 +16,7 @@ public class AutoMLV99 extends SchemaV3<AutoML,AutoMLV99> {
    * (e.g., "airlines" and "iris").
    */
   @API(help="Identifier for models that should be grouped together in the leaderboard", direction=API.Direction.INOUT)
-  public final String project = "<default>";
+  public final String project_name = "<default>";
 
   @API(help="The leaderboard for this project, potentially including models from other AutoML runs", direction=API.Direction.OUTPUT)
   public LeaderboardV99   leaderboard;
