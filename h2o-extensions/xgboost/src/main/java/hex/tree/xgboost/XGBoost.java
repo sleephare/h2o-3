@@ -17,9 +17,11 @@ import water.fvec.Chunk;
 import water.fvec.Frame;
 import water.fvec.Vec;
 import water.util.ArrayUtils;
+import water.util.FileUtils;
 import water.util.Log;
 import water.util.Timer;
 
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.util.List;
 
 import static hex.tree.SharedTree.createModelSummaryTable;
 import static hex.tree.SharedTree.createScoringHistoryTable;
+import static water.H2O.PID;
 import static water.H2O.technote;
 
 /** Gradient Boosted Trees
@@ -450,6 +453,9 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
 
   // ----------------------
   private class XGBoostDriver extends Driver {
+
+    private static final String FEATURE_MAP_FILENAME = "featureMap.txt";
+
     @Override
     public void computeImpl() {
       init(true); //this can change the seed if it was set to -1
@@ -496,15 +502,16 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
             _parms._response_column, _parms._weights_column, _parms._fold_column, featureMap, model._output._sparse) : null;
 
         // For feature importances - write out column info
-        OutputStream os;
+        OutputStream os = null;
+        File tmpModelDir = null;
         try {
-          os = new FileOutputStream("/tmp/featureMap.txt");
+          tmpModelDir = java.nio.file.Files.createTempDirectory("xgboost-model-" + _result.toString()).toFile();
+          os = new FileOutputStream(new File(tmpModelDir, FEATURE_MAP_FILENAME));
           os.write(featureMap[0].getBytes());
-          os.close();
-        } catch (FileNotFoundException e) {
-          e.printStackTrace();
         } catch (IOException e) {
-          e.printStackTrace();
+          H2O.fail("Cannot generate " + FEATURE_MAP_FILENAME, e);
+        } finally {
+          FileUtils.close(os);
         }
 
         HashMap<String, DMatrix> watches = new HashMap<>();
@@ -517,26 +524,27 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
         model.model_info()._booster = ml.dmlc.xgboost4j.java.XGBoost.train(trainMat, model.createParams(), 0, watches, null, null);
 
         // train the model
-        scoreAndBuildTrees(model, trainMat, validMat);
+        scoreAndBuildTrees(model, trainMat, validMat, tmpModelDir);
 
         // final scoring
-        doScoring(model, model.model_info()._booster, trainMat, validMat, true);
+        doScoring(model, model.model_info()._booster, trainMat, validMat, true, tmpModelDir);
 
         // save the model to DKV
         model.model_info().nativeToJava();
       } catch (XGBoostError xgBoostError) {
         xgBoostError.printStackTrace();
+        H2O.fail("XGBoost failure", xgBoostError);
       }
       model._output._boosterBytes = model.model_info()._boosterBytes;
       model.unlock(_job);
     }
 
-    protected final void scoreAndBuildTrees(XGBoostModel model, DMatrix trainMat, DMatrix validMat) throws XGBoostError {
+    protected final void scoreAndBuildTrees(XGBoostModel model, DMatrix trainMat, DMatrix validMat, final File tmpModelDir) throws XGBoostError {
       for( int tid=0; tid< _parms._ntrees; tid++) {
         // During first iteration model contains 0 trees, then 1-tree, ...
-        boolean scored = doScoring(model, model.model_info()._booster, trainMat, validMat, false);
+        boolean scored = doScoring(model, model.model_info()._booster, trainMat, validMat, false, tmpModelDir);
         if (scored && ScoreKeeper.stopEarly(model._output.scoreKeepers(), _parms._stopping_rounds, _nclass > 1, _parms._stopping_metric, _parms._stopping_tolerance, "model's last", true)) {
-          doScoring(model, model.model_info()._booster, trainMat, validMat, true);
+          doScoring(model, model.model_info()._booster, trainMat, validMat, true, tmpModelDir);
           _job.update(_parms._ntrees-model._output._ntrees); //finish
           return;
         }
@@ -559,18 +567,19 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
         model._output._training_time_ms = ArrayUtils.copyAndFillOf(model._output._training_time_ms, model._output._ntrees+1, System.currentTimeMillis());
         if (stop_requested() && !timeout()) throw new Job.JobCancelledException();
         if (timeout()) { //stop after scoring
-          if (!scored) doScoring(model, model.model_info()._booster, trainMat, validMat, true);
+          if (!scored) doScoring(model, model.model_info()._booster, trainMat, validMat, true, tmpModelDir);
           _job.update(_parms._ntrees-model._output._ntrees); //finish
           break;
         }
       }
-      doScoring(model, model.model_info()._booster, trainMat, validMat, true);
+      doScoring(model, model.model_info()._booster, trainMat, validMat, true, tmpModelDir);
     }
 
     long _firstScore = 0;
     long _timeLastScoreStart = 0;
     long _timeLastScoreEnd = 0;
-    private boolean doScoring(XGBoostModel model, Booster booster, DMatrix trainMat, DMatrix validMat, boolean finalScoring) throws XGBoostError {
+    
+    private boolean doScoring(XGBoostModel model, Booster booster, DMatrix trainMat, DMatrix validMat, boolean finalScoring, File tmpModelDir) throws XGBoostError {
       boolean scored = false;
       long now = System.currentTimeMillis();
       if (_firstScore == 0) _firstScore = now;
@@ -591,7 +600,7 @@ public class XGBoost extends ModelBuilder<XGBoostModel,XGBoostModel.XGBoostParam
         _timeLastScoreStart = now;
         model.doScoring(booster, trainMat, validMat);
         _timeLastScoreEnd = System.currentTimeMillis();
-        model.computeVarImp(booster.getFeatureScore("/tmp/featureMap.txt"));
+        model.computeVarImp(booster.getFeatureScore(new File(tmpModelDir, FEATURE_MAP_FILENAME).getAbsolutePath()));
         XGBoostOutput out = model._output;
         out._model_summary = createModelSummaryTable(out._ntrees, null);
         out._scoring_history = createScoringHistoryTable(out, model._output._scored_train, out._scored_valid, _job, out._training_time_ms);
