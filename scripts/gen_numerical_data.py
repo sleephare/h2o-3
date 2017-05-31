@@ -19,20 +19,28 @@ def gen_data():
     numZeros = 0
     numNans = 0   # generate Nans
     numInfs = 500
-    numRep = 4      # number of times to repeat array
+    numRep = 4    # number of times to repeat array
     csvFile = "/Users/wendycwong/temp/TopBottomNRep4.csv"
     fMult = 1.1
 
     genStaticData(intA, floatA, upperBoundL, lowBoundF, upperBoundF, fMult)
     # save the correct sequence before shuffling for comparison purpose
-    bottom20FrameL = h2o.H2OFrame(python_obj=zip(intA[0:int(round(len(intA)*0.2))]))
-    bottom20FrameF = h2o.H2OFrame(python_obj=zip(floatA[0:int(round(len(floatA)*0.2))]))
+    tempL = intA[0:int(round(len(intA)*0.2))]   # comes in decreasing value
+    tempF = floatA[0:int(round(len(floatA)*0.2))]   # comes in decreasing value
+    # save the correct sequence before shuffling for comparison purpose
+    bottom20FrameL = h2o.H2OFrame(python_obj=zip(tempL))
+    bottom20FrameF = h2o.H2OFrame(python_obj=zip(tempF))
+    h2o.download_csv(bottom20FrameL.cbind(bottom20FrameF), "/Users/wendycwong/temp/Top20Per.csv" )
+
+    tempL = intA[int(round(len(intA)*0.8)):len(intA)]
+    tempL.sort()
+    tempF = floatA[int(round(len(floatA)*0.8)):len(floatA)]
+    tempF.sort()
+    bottom20FrameL = h2o.H2OFrame(python_obj=zip(tempL))
+    bottom20FrameF = h2o.H2OFrame(python_obj=zip(tempF))
     h2o.download_csv(bottom20FrameL.cbind(bottom20FrameF), "/Users/wendycwong/temp/Bottom20Per.csv" )
 
-    # save the correct sequence before shuffling for comparison purpose
-    bottom20FrameL = h2o.H2OFrame(python_obj=zip(intA[int(round(len(intA)*0.8)):int(len(intA))]))
-    bottom20FrameF = h2o.H2OFrame(python_obj=zip(floatA[int(round(len(intA)*0.8)):int(len(intA))]))
-    h2o.download_csv(bottom20FrameL.cbind(bottom20FrameF), "/Users/wendycwong/temp/Top20Per.csv" )
+
     # repeat the columns a few times to seriously test the algo with duplicated data.
 
     for val in range(0, numRep):
@@ -119,7 +127,7 @@ def genRandomData(intA, floatA, sizeMat):
         floatA.append(-1.0*uniform(tempInt, tempIntN))
 
 def genStaticData(intA, floatA, upperBoundL, lowBoundF, upperBoundF, fMult):
-    for val in range(lowBoundF, upperBoundF):
+    for val in range(upperBoundF, lowBoundF, -1):
         floatA.append(val*fMult)
         intA.append(upperBoundL)
         upperBoundL=upperBoundL-1

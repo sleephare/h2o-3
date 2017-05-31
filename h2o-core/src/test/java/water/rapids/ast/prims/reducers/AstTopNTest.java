@@ -7,6 +7,8 @@ import water.DKV;
 import water.Key;
 import water.Scope;
 import water.TestUtil;
+import water.fvec.C8Chunk;
+import water.fvec.Chunk;
 import water.fvec.Frame;
 import water.rapids.Rapids;
 import water.rapids.Val;
@@ -37,6 +39,7 @@ public class AstTopNTest extends TestUtil {
         int numRuns = 4;
         int testPercent = 0;      // store test percentage
         Frame topLong = null, topFloat=null, bottomLong=null, bottomFloat=null;
+        double tolerance=1e-12;
 
         // load in the datasets with the answers
         _train = parse_test_file(Key.make("topbottom"), "smalldata/jira/TopBottomN.csv.zip");
@@ -50,15 +53,26 @@ public class AstTopNTest extends TestUtil {
         Scope.track(topFloat);
         Scope.track(bottomFloat);
         Scope.track(bottomLong);
+        Chunk[] tempChunkT = new Chunk[1];
+        Chunk[] tempChunkB = new Chunk[1];
+        tempChunkT[0] = topLong.vec(0).chunkForChunkIdx(0);
+        tempChunkB[0] = bottomLong.vec(0).chunkForChunkIdx(0);
 
         try {
             for (int index = 0; index < numRuns; index++) { // randomly choose 4 percentages to test
-               // testPercent = checkPercent[_rand.nextInt(checkPercent.length)];
-                testPercent = checkPercent[index];
-                testTopBottom(topLong, testPercent, 0, "0", 0);  // test top % Long
-                testTopBottom(topFloat, testPercent, 0, "1", 1e-24);  // test top % Float
-                testTopBottom(bottomLong, testPercent, 1, "0", 0);  // test bottom % Long
-                testTopBottom(bottomFloat, testPercent, 1, "1", 1e-24);  // test bottom % Float
+                testPercent = checkPercent[_rand.nextInt(checkPercent.length)];
+
+                if (tempChunkT[0] instanceof C8Chunk)   // ToDo: Tomas, Long is not read in as long here?
+                    testTopBottom(topLong, testPercent, 0, "0", 0);  // test top % Long
+                else
+                    testTopBottom(topLong, testPercent, 0, "0", tolerance);
+                testTopBottom(topFloat, testPercent, 0, "1", tolerance);  // test top % Float
+                if (tempChunkT[0] instanceof C8Chunk)
+                    testTopBottom(bottomLong, testPercent, 1, "0", 0);  // test bottom % Long
+                else
+                    testTopBottom(bottomLong, testPercent, 1, "0", tolerance);  // test bottom % Long
+
+                testTopBottom(bottomFloat, testPercent, 1, "1", tolerance);  // test bottom % Float
             }
         } finally {
             Scope.exit();
@@ -76,7 +90,7 @@ public class AstTopNTest extends TestUtil {
             Scope.track(topBN);
             topBL = topBN.extractFrame(1,2);
             Scope.track(topBL);
-            checkTopBottomN(topBottom, topBL, testPercent, tolerance);
+            checkTopBottomN(topBottom, topBL, tolerance);
         } finally {
             Scope.exit();
         }
@@ -84,7 +98,7 @@ public class AstTopNTest extends TestUtil {
     /*
     Helper function to compare test frame result with correct answer
      */
-    public static void checkTopBottomN(Frame answerF, Frame grabF, int nPercent, double tolerance) {
+    public static void checkTopBottomN(Frame answerF, Frame grabF, double tolerance) {
         Scope.enter();
         try {
             double nfrac = 1.0*grabF.numRows()/answerF.numRows();   // translate percentage to actual fraction
