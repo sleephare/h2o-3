@@ -1138,9 +1138,10 @@ h2o.pivot <- function(x, index, column, value){
 #' @return An H2OFrame with 2 columns: first column is the original row indices, second column contains the topN values
 #' @export
 h2o.topBottomN <- function(x, column, nPercent, getBottom){
+  cnames = names(x)
   if (typeof(column)=="character") {  # verify column
-    if (!column %in% colnames) stop("column name not found in dataframe")
-    colIndex = (which (column %in% colnames))-1
+    if (!column %in% cnames) stop("column name not found in dataframe")
+    colIndex = (which (column %in% cnames))-1
 
   } else {  # column is number
     if ((column <= 0) || (column > ncol)) stop("Illegal column index")

@@ -2507,21 +2507,20 @@ class H2OFrame(object):
         :return: a H2OFrame containing two columns.  The first column contains the original row indices where
             the top values are extracted from.  The second column contains the top nPercent values.
         """
-        assert isinstance(column, str) or isinstance(column, int)
-        assert (nPercent >= 0) and (nPercent<100.0), "nPercent must be between 0.0 and 100.0"
+        assert (nPercent >= 0) and (nPercent<=100.0), "nPercent must be between 0.0 and 100.0"
         assert round(nPercent*0.01*self.nrows)>0, "Increase nPercent.  Current value will result in top 0 row."
 
-        col_names = self.names
-        if isinstance(column, str):
-            if column not in col_names:
-                raise H2OValueError("Column name not found H2OFrame")
-            else:
-                colIndex = col_names.index(column)
         if isinstance(column, int):
             if (column < 0) or (column>=self.ncols):
                 raise H2OValueError("Invalid column index H2OFrame")
             else:
                 colIndex = column
+        else:       # column is a column name
+            col_names = self.names
+            if column not in col_names:
+                raise H2OValueError("Column name not found H2OFrame")
+            else:
+                colIndex = col_names.index(column)
 
         return H2OFrame._expr(expr=ExprNode("topn",self,colIndex, nPercent, getBottom))
 
